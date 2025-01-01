@@ -34,13 +34,14 @@ const PoiMarkers = (props: {pois: Poi[]}) => {
     const [map, setMap] = useState<google.maps.Map | null>(null);
     const mapRef = useRef<HTMLDivElement>(null); // The <HTMLDivElement> is casting the mapRef which can be null to type HTMLDivElement
 
+    const loader = new Loader({
+        apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
+        version: "weekly",
+    });
+
     // Initialize the map
     useEffect(() => {
         const initMap = async () => {
-            const loader = new Loader({
-                apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
-                version: "weekly",
-            });
             const { Map } = await loader.importLibrary("maps");
             const defPos = { lat: -33.860664, lng: 151.208138 };
 
@@ -86,6 +87,19 @@ const PoiMarkers = (props: {pois: Poi[]}) => {
         });
     };
 
+    // Change the markers array, if the pois array has changed
+    useEffect(() => {
+        props.pois.map( async (poi: Poi) => {
+            const { AdvancedMarkerElement } = await google.maps.importLibrary("marker") as typeof google.maps.marker;
+            const marker = new AdvancedMarkerElement({
+                map: map,
+                position: poi.location,
+                title: poi.key,
+            });
+            setMarkerRef(marker, poi.key);
+        })
+    }, [props.pois]);
+
     // A click handler to pan the map to where the marker is
     const handleClick = useCallback((ev: google.maps.MapMouseEvent) => {
         if(!map) return;
@@ -122,7 +136,6 @@ const PoiMarkers = (props: {pois: Poi[]}) => {
             <AdvancedMarker
                 key={poi.key}
                 position={poi.location}
-                ref={marker => setMarkerRef(marker, poi.key)}
                 clickable={true}
                 onClick={handleClick}>
                 <Pin background={'#FBBC04'} glyphColor={'#000'} borderColor={'#000'} />

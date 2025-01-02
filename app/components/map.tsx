@@ -7,27 +7,9 @@ import type {Marker} from '@googlemaps/markerclusterer';
 import {Circle} from './circle';
 import { Loader } from '@googlemaps/js-api-loader';
 
-// Adding advanced marker locations
 type Poi ={ key: string, location: google.maps.LatLngLiteral }
-const locations: Poi[] = [
-  {key: 'operaHouse', location: { lat: -33.8567844, lng: 151.213108  }},
-  {key: 'tarongaZoo', location: { lat: -33.8472767, lng: 151.2188164 }},
-  {key: 'manlyBeach', location: { lat: -33.8209738, lng: 151.2563253 }},
-  {key: 'hyderPark', location: { lat: -33.8690081, lng: 151.2052393 }},
-  {key: 'theRocks', location: { lat: -33.8587568, lng: 151.2058246 }},
-  {key: 'circularQuay', location: { lat: -33.858761, lng: 151.2055688 }},
-  {key: 'harbourBridge', location: { lat: -33.852228, lng: 151.2038374 }},
-  {key: 'kingsCross', location: { lat: -33.8737375, lng: 151.222569 }},
-  {key: 'botanicGardens', location: { lat: -33.864167, lng: 151.216387 }},
-  {key: 'museumOfSydney', location: { lat: -33.8636005, lng: 151.2092542 }},
-  {key: 'maritimeMuseum', location: { lat: -33.869395, lng: 151.198648 }},
-  {key: 'kingStreetWharf', location: { lat: -33.8665445, lng: 151.1989808 }},
-  {key: 'aquarium', location: { lat: -33.869627, lng: 151.202146 }},
-  {key: 'darlingHarbour', location: { lat: -33.87488, lng: 151.1987113 }},
-  {key: 'barangaroo', location: { lat: - 33.8605523, lng: 151.1972205 }},
-];
 
-const PoiMarkers = (props: {pois: Poi[]}) => {
+export function Map (props: {pois: Poi[]})  {
     const [markers, setMarkers] = useState<{[key: string]: Marker}>({}); // Creating a list of markers to store in a state
     const clusterer = useRef<MarkerClusterer | null>(null); // Store the clusterer as a reference
     const [circleCenter, setCircleCenter] = useState(null);
@@ -56,6 +38,12 @@ const PoiMarkers = (props: {pois: Poi[]}) => {
         }
         initMap();
     }, []);
+
+    // Add a Listener to the map, but only after the map has been initialized
+    useEffect(() => {
+        if (!map) return;
+        map.addListener('click', handleClick);
+    })
     
     // Initialize MarkerClusterer, if the map has changed
     useEffect(() => {
@@ -87,32 +75,71 @@ const PoiMarkers = (props: {pois: Poi[]}) => {
         });
     };
 
-    // Change the markers array, if the pois array has changed
+    
+    /**
+     * Change the markers array, if the pois array has changed
+     * 
+     * Having map in the AdvancedMarkerElementOptions adds the markers to the map.
+     * However, adding marker customizations in the return statement doesn't apply them unless
+     * the customizations are referenced in some way. We resolve this by initializing the markers
+     * with the customizations and adding the marker to the map.
+     * We could add the listeners to the map as follows:
+     * 
+     * marker.addListener('click', (ev) => handleClick(ev, map));
+     * 
+     * However, the listeners being attached to the markers means the handleClick() method has no
+     * access to the mapRef, which is kind of necessary to display the Circles later on in the PoiMarkers
+     * return statement. So, we just make a listener for the map which checks if the click event is on a marker.
+    */
     useEffect(() => {
         props.pois.map( async (poi: Poi) => {
-            const { AdvancedMarkerElement } = await google.maps.importLibrary("marker") as typeof google.maps.marker;
+            const { AdvancedMarkerElement, PinElement } = await google.maps.importLibrary("marker") as google.maps.MarkerLibrary;
+            const pin = new PinElement({
+                background: '#FBBC04',
+                glyphColor: '#000',
+                borderColor: '#000',
+            });
             const marker = new AdvancedMarkerElement({
                 map: map,
                 position: poi.location,
                 title: poi.key,
+                content: pin.element,
+                gmpClickable: false,
             });
             setMarkerRef(marker, poi.key);
         })
     }, [props.pois]);
 
-    // A click handler to pan the map to where the marker is
-    const handleClick = useCallback((ev: google.maps.MapMouseEvent) => {
+    // A click handler to pan the map to where the marker is and change the circleCenter
+    const handleClick = (ev: google.maps.MapMouseEvent) => {
         if(!map) return;
         if(!ev.latLng) return;
-        console.log('marker clicked:', ev.latLng.toString());
-        map.panTo(ev.latLng);
-        console.log('circleCenter:', circleCenter);
-        if (circleCenter?.equals(ev.latLng)) {
-            setCircleCenter(null);
-        } else {
-            setCircleCenter(ev.latLng);
+        // Check to see if the clicked location is a marker
+        const thresh = 0.001;
+        var isMarker = false;
+        const numMarkers = Object.keys(markers).length;
+        var markerIdx = 0;
+        for (; markerIdx < numMarkers; markerIdx++) {
+            if (Math.abs(props.pois[markerIdx]["location"].lat - ev.latLng.lat()) < thresh 
+            && Math.abs(props.pois[markerIdx]["location"].lng - ev.latLng.lng()) < thresh) {
+                isMarker = true;
+                break;
+            }
         }
-    }, [map, circleCenter]);
+        if (isMarker) {
+            const markerCenter = props.pois[markerIdx]["location"]
+            map.panTo(markerCenter);
+            // The below code is to toggle the circleCenter when the marker is clicked again.
+            if (circleCenter && Math.abs(circleCenter.lat - markerCenter.lat) < thresh && Math.abs(circleCenter.lng - markerCenter.lng) < thresh) {
+                console.log("Making circleCenter null");
+                setCircleCenter(null);
+            } else {
+                console.log("Setting circleCenter to the clicked location");
+                setCircleCenter(markerCenter);
+            }
+            console.log("circleCenter is now: ", circleCenter);
+        }
+    };
 
     /**
      * Since the Map object is modified in this component with a lot of properties, we want to
@@ -132,25 +159,7 @@ const PoiMarkers = (props: {pois: Poi[]}) => {
             fillOpacity={0.3}
         />
         <div ref={mapRef} style={{ height: "100vh", width: "100%" }}>
-            {props.pois.map( (poi: Poi) => (
-            <AdvancedMarker
-                key={poi.key}
-                position={poi.location}
-                clickable={true}
-                onClick={handleClick}>
-                <Pin background={'#FBBC04'} glyphColor={'#000'} borderColor={'#000'} />
-            </AdvancedMarker>
-            ))}
         </div>
       </>
     );
   };
-
-export function Map() {
-    console.log("Inside Map component")
-    return (
-        <APIProvider apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY} onLoad={() => console.log('Maps API has loaded inside map.tsx.')}>
-            <PoiMarkers pois={locations} />
-        </APIProvider>
-    );
-};

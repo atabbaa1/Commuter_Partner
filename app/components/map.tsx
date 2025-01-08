@@ -6,7 +6,6 @@ import {MarkerClusterer} from '@googlemaps/markerclusterer';
 import type {Marker} from '@googlemaps/markerclusterer';
 import {Circle} from './circle';
 import { Loader } from '@googlemaps/js-api-loader';
-import {Test} from './test';
 
 type Poi ={ key: string, location: google.maps.LatLngLiteral }
 
@@ -16,8 +15,6 @@ export function Map (props: {pois: Poi[]})  {
     const [circleCenter, setCircleCenter] = useState<google.maps.LatLngLiteral | null>(null);
     const [map, setMap] = useState<google.maps.Map | null>(null);
     const mapRef = useRef<HTMLDivElement>(null); // The <HTMLDivElement> is casting the mapRef which can be null to type HTMLDivElement
-    const circleRef = useRef<google.maps.Circle | null>(null);
-    const testRef = useRef<google.maps.Circle | null>(null);
 
     const loader = new Loader({
         apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
@@ -38,6 +35,7 @@ export function Map (props: {pois: Poi[]})  {
             })
             // Setup the Map
             setMap( new Map(mapRef.current as HTMLDivElement, mapOptions));
+            console.log("Map initialized");
         }
         initMap();
     }, []);
@@ -58,14 +56,17 @@ export function Map (props: {pois: Poi[]})  {
         }
     }, [map]);
 
-    // Update markers, if the markers array has changed
+    // Update marker cluster, if the markers array has changed
     useEffect(() => {
         clusterer.current?.clearMarkers();
         clusterer.current?.addMarkers(Object.values(markers));
     }, [markers]);
 
     const setMarkerRef = (marker: Marker | null, key: string) => {
-        if (marker && markers[key]) return;
+        if (marker && markers[key]) {
+            console.log("Marker already exists for key:", key);
+            return;
+        }
         if (!marker && !markers[key]) return;
 
         setMarkers(prev => {
@@ -112,7 +113,11 @@ export function Map (props: {pois: Poi[]})  {
             });
             setMarkerRef(marker, poi.key);
         })
-    }, [props.pois]); // Do NOT add map to the dependencies array, or else the marker clustering won't work
+        console.log("props.pois has changed");
+    // Do NOT add map to the dependencies array, or else there will be duplicate Advanced markers.
+    // The Advanced markers will be added once when props.pois is initialized, and then again when map is initialized.
+    // Marker clustering will continue to work, but it will be ineffective.
+    }, [props.pois]);
 
     // A click handler to pan the map to where the marker is and change the circleCenter
     const handleClick = (ev: google.maps.MapMouseEvent) => {
@@ -134,8 +139,9 @@ export function Map (props: {pois: Poi[]})  {
             const markerCenter = props.pois[markerIdx]["location"]
             map.panTo(markerCenter);
             // The below code is to toggle the circleCenter when the marker is clicked again.
+            console.log("circleCenter is currently: ", circleCenter);
             if (circleCenter && Math.abs(circleCenter.lat - markerCenter.lat) < thresh && Math.abs(circleCenter.lng - markerCenter.lng) < thresh) {
-                // console.log("Making circleCenter null");
+                console.log("Making circleCenter null");
                 setCircleCenter(null);
             } else {
                 // console.log("Setting circleCenter to the clicked location");
@@ -147,8 +153,9 @@ export function Map (props: {pois: Poi[]})  {
 
     /**
      * Since the Map object is modified in this component with a lot of properties, we want to
-     * make sure to pass on the mapRef we have created. On the other hand, we don't need to pass
-     * on a circleRef. Read the comments in circle.tsx for more information.
+     * make sure to pass on the mapRef we have created.
+     * Meanwhile, the Circle object is not instantiated here, bor are there important methods
+     * for it here. Therefore, we don't need a circleRef 
     */
 
     return (
@@ -162,23 +169,9 @@ export function Map (props: {pois: Poi[]})  {
             fillColor={'#3b82f6'}
             fillOpacity={0.3}
             map={map}
-            ref={circleRef}
         />
         <div ref={mapRef} style={{ height: "100vh", width: "100%" }}>
         </div>
       </>
     );
   };
-  /**
-   * <Test props={circleCenter} ref={testRef}/>
-   * <Circle
-            radius={800}
-            center={circleCenter}
-            strokeColor={'#0c4cb3'}
-            strokeOpacity={1}
-            strokeWeight={3}
-            fillColor={'#3b82f6'}
-            fillOpacity={0.3}
-            map={map}
-        />
-   */

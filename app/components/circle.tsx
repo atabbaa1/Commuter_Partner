@@ -1,39 +1,3 @@
-"use client"
-
-/* eslint-disable complexity */
-import {
-  forwardRef,
-  useContext,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-  RefObject
-} from 'react';
-
-import type {Ref} from 'react';
-import {GoogleMapsContext, latLngEquals} from '@vis.gl/react-google-maps';
-import { Loader } from '@googlemaps/js-api-loader';
-
-type CircleEventProps = {
-  onClick?: (e: google.maps.MapMouseEvent) => void;
-  onDrag?: (e: google.maps.MapMouseEvent) => void;
-  onDragStart?: (e: google.maps.MapMouseEvent) => void;
-  onDragEnd?: (e: google.maps.MapMouseEvent) => void;
-  onMouseOver?: (e: google.maps.MapMouseEvent) => void;
-  onMouseOut?: (e: google.maps.MapMouseEvent) => void;
-  onRadiusChanged?: (r: ReturnType<google.maps.Circle['getRadius']>) => void;
-  onCenterChanged?: (p: ReturnType<google.maps.Circle['getCenter']>) => void;
-};
-
-// CircleProps will include all properties existing in BOTH google.maps.CircleOptions and CircleEventProps
-export type CircleProps = google.maps.CircleOptions & CircleEventProps;
-
-// CircleRef is a union of google.maps.Circle and null
-export type CircleRef = Ref<google.maps.Circle | null>;
-
-// CircleProps will include all properties existing in BOTH google.maps.CircleOptions and CircleEventProps
-// CircleRef is a union of google.maps.Circle and null
-
 /**
  * Component to render a Google Maps Circle on a map
  * 
@@ -46,9 +10,10 @@ export type CircleRef = Ref<google.maps.Circle | null>;
  * 
  * The first argument of useImperativeHandle is the ref object, and the second argument is a function
  * that returns the value that will be exposed to the parent component when using ref.
- * In the non-commented code below, a circle instance from useCircle() is exposed to the parent component.
- * This means the parent component can interact with the methods and properties defined in useCircle(),
- * not just the methods and properties associated with a default instance of the Circle component.
+ * useImperativeHandle is a React hook, which prevents other React hooks like useEffect from being called
+ * within it. Therefore, the useImperativevHandle is at the end with hardly anything in it. Actually, there's
+ * no need for useImperativeHandle, maybe because of the forwardRef?
+ * 
  * The parent component will often interact with these methods as shown in the commented example below:
  * 
  * const ParentComponent = () => {
@@ -87,13 +52,41 @@ export type CircleRef = Ref<google.maps.Circle | null>;
  * the Circle component in a ref. 
  * 
  * At one point, I was getting a google not defined error because I was accessing google.maps.Circle before the Google
- * Maps API had loaded. This occurred when the below method had separate lines:
- * 
- * const circle = useCircle(props);
- * useImperativeHandle(ref, () => circle);
- * 
- * This was causing double the number of Circles to try and get loaded, I think.
+ * Maps API had loaded. This was solved by using await and Loader, I think.
  */
+
+"use client"
+
+/* eslint-disable complexity */
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  RefObject
+} from 'react';
+
+import type {Ref} from 'react';
+import {latLngEquals} from '@vis.gl/react-google-maps';
+import { Loader } from '@googlemaps/js-api-loader';
+
+type CircleEventProps = {
+  onClick?: (e: google.maps.MapMouseEvent) => void;
+  onDrag?: (e: google.maps.MapMouseEvent) => void;
+  onDragStart?: (e: google.maps.MapMouseEvent) => void;
+  onDragEnd?: (e: google.maps.MapMouseEvent) => void;
+  onMouseOver?: (e: google.maps.MapMouseEvent) => void;
+  onMouseOut?: (e: google.maps.MapMouseEvent) => void;
+  onRadiusChanged?: (r: ReturnType<google.maps.Circle['getRadius']>) => void;
+  onCenterChanged?: (p: ReturnType<google.maps.Circle['getCenter']>) => void;
+};
+
+export type CircleProps = google.maps.CircleOptions & CircleEventProps;
+export type CircleRef = Ref<google.maps.Circle | null>;
+
+// CircleProps will include all properties existing in BOTH google.maps.CircleOptions and CircleEventProps
+// CircleRef is a union of google.maps.Circle and null
+
 export const Circle = forwardRef((props: CircleProps, ref: RefObject<google.maps.Circle>) => {
   const {
     onClick,
@@ -133,26 +126,40 @@ export const Circle = forwardRef((props: CircleProps, ref: RefObject<google.maps
       // const {Circle} = await loader.importLibrary("maps");
       // circleRef.current = new Circle({});
       await loader.importLibrary("maps");
-      circleRef.current = new google.maps.Circle({});
+      circleRef.current = new google.maps.Circle({
+        radius: radius,
+        center: center,
+      });
       circleRef.current.setOptions(circleOptions);
       circleRef.current.setMap(map);
-      console.log("Circle initialized and added to map:", circleRef.current);
+      console.log("Circle initialized and added to map. The Circle is: ", circleRef.current);
     };
+    if (!map) return;
     initCircle();
-  }, [map, circleOptions]);
+  }, [map]);
 
   const circle = circleRef.current;
 
   useEffect(() => {
-    if (!circle) return;
+    if (!circle) {
+      console.log('Circle not initialized');
+      return;
+    }
+    // If the center is null. From map.tsx, this condition occurs when the circle is clicked again
+    // This technically covers the case if (latLngEquals(center, circle.getCenter()))
     if (!center) {
       circle.setMap(null); // Remove the circle from the map
+      console.log("Circle removed from map");
       return;
     }
     if (!latLngEquals(center, circle.getCenter())) {
       circle.setCenter(center);
       console.log("Circle center updated:", center);
     }
+    // Keep in mind that editing the center of the circle means the circle has been changed
+    // This will trigger any useEffect with circle as a dependency.
+    // If that useEffect adds any Listeners, the circleOptions is affected,
+    // and any useEffect with circleOptions as a dependency will be triggered.
   }, [center]);
 
   useEffect(() => {
@@ -162,26 +169,6 @@ export const Circle = forwardRef((props: CircleProps, ref: RefObject<google.maps
       console.log("Circle radius updated:", radius);
     }
   }, [radius]);
-
-  // const map = useContext(GoogleMapsContext)?.map; // ******************************************************************************
-
-  // // create circle instance and add to the map once the map is available
-  // useEffect(() => {
-  //   if (!map) {
-  //     if (map === undefined)
-  //       console.error('<Circle> has to be inside a Map component.');
-
-  //     return;
-  //   }
-
-  //   console.log("The center of the map inside circle.tsx is: ", map.getCenter().lat(), map.getCenter().lng());
-  //   circle.setMap(map);
-
-  //   // ****************************************************************************************************************************
-  //   // return () => {
-  //   //   circle.setMap(null);
-  //   // };
-  // }, [map]);
 
   // attach and re-attach event-handlers when any of the properties change
   useEffect(() => {
@@ -210,13 +197,13 @@ export const Circle = forwardRef((props: CircleProps, ref: RefObject<google.maps
       const newCenter = circle.getCenter();
       callbacks.current.onCenterChanged?.(newCenter);
     });
+    // console.log("Event listeners added to the circle");
 
-    // ****************************************************************************************************************************
     return () => {
       gme.clearInstanceListeners(circle);
     };
   }, [circle]);
 
-  useImperativeHandle(ref, () => circle);
-  return null; // No need for this component to render a DOM if there is a useImperativeHandle()
+  // useImperativeHandle(ref, () => circle);
+  return null; // No need for this component to render a DOM if there is a useImperativeHandle() or a forwardRef()
 });

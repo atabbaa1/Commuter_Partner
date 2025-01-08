@@ -6,15 +6,18 @@ import {MarkerClusterer} from '@googlemaps/markerclusterer';
 import type {Marker} from '@googlemaps/markerclusterer';
 import {Circle} from './circle';
 import { Loader } from '@googlemaps/js-api-loader';
+import {Test} from './test';
 
 type Poi ={ key: string, location: google.maps.LatLngLiteral }
 
 export function Map (props: {pois: Poi[]})  {
     const [markers, setMarkers] = useState<{[key: string]: Marker}>({}); // Creating a list of markers to store in a state
     const clusterer = useRef<MarkerClusterer | null>(null); // Store the clusterer as a reference
-    const [circleCenter, setCircleCenter] = useState(null);
+    const [circleCenter, setCircleCenter] = useState<google.maps.LatLngLiteral | null>(null);
     const [map, setMap] = useState<google.maps.Map | null>(null);
     const mapRef = useRef<HTMLDivElement>(null); // The <HTMLDivElement> is casting the mapRef which can be null to type HTMLDivElement
+    const circleRef = useRef<google.maps.Circle | null>(null);
+    const testRef = useRef<google.maps.Circle | null>(null);
 
     const loader = new Loader({
         apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
@@ -43,7 +46,8 @@ export function Map (props: {pois: Poi[]})  {
     useEffect(() => {
         if (!map) return;
         map.addListener('click', handleClick);
-    })
+        console.log("The center of the map inside map.tsx is: ", map.getCenter().lat(), map.getCenter().lng());
+    }, [map]) // Originally no map in the dependencies array
     
     // Initialize MarkerClusterer, if the map has changed
     useEffect(() => {
@@ -83,12 +87,12 @@ export function Map (props: {pois: Poi[]})  {
      * However, adding marker customizations in the return statement doesn't apply them unless
      * the customizations are referenced in some way. We resolve this by initializing the markers
      * with the customizations and adding the marker to the map.
-     * We could add the listeners to the map as follows:
+     * We could add the listeners to the markers as follows:
      * 
      * marker.addListener('click', (ev) => handleClick(ev, map));
      * 
      * However, the listeners being attached to the markers means the handleClick() method has no
-     * access to the mapRef, which is kind of necessary to display the Circles later on in the PoiMarkers
+     * access to the mapRef, which is kind of necessary to display the Circles later on in the Map
      * return statement. So, we just make a listener for the map which checks if the click event is on a marker.
     */
     useEffect(() => {
@@ -108,7 +112,7 @@ export function Map (props: {pois: Poi[]})  {
             });
             setMarkerRef(marker, poi.key);
         })
-    }, [props.pois]);
+    }, [props.pois]); // Do NOT add map to the dependencies array, or else the marker clustering won't work
 
     // A click handler to pan the map to where the marker is and change the circleCenter
     const handleClick = (ev: google.maps.MapMouseEvent) => {
@@ -131,20 +135,20 @@ export function Map (props: {pois: Poi[]})  {
             map.panTo(markerCenter);
             // The below code is to toggle the circleCenter when the marker is clicked again.
             if (circleCenter && Math.abs(circleCenter.lat - markerCenter.lat) < thresh && Math.abs(circleCenter.lng - markerCenter.lng) < thresh) {
-                console.log("Making circleCenter null");
+                // console.log("Making circleCenter null");
                 setCircleCenter(null);
             } else {
-                console.log("Setting circleCenter to the clicked location");
+                // console.log("Setting circleCenter to the clicked location");
                 setCircleCenter(markerCenter);
             }
-            console.log("circleCenter is now: ", circleCenter);
+            // console.log("circleCenter is now: ", circleCenter);
         }
     };
 
     /**
      * Since the Map object is modified in this component with a lot of properties, we want to
      * make sure to pass on the mapRef we have created. On the other hand, we don't need to pass
-     * on the circleRef. Read the comments in circle.tsx for more information.
+     * on a circleRef. Read the comments in circle.tsx for more information.
     */
 
     return (
@@ -157,9 +161,24 @@ export function Map (props: {pois: Poi[]})  {
             strokeWeight={3}
             fillColor={'#3b82f6'}
             fillOpacity={0.3}
+            map={map}
+            ref={circleRef}
         />
         <div ref={mapRef} style={{ height: "100vh", width: "100%" }}>
         </div>
       </>
     );
   };
+  /**
+   * <Test props={circleCenter} ref={testRef}/>
+   * <Circle
+            radius={800}
+            center={circleCenter}
+            strokeColor={'#0c4cb3'}
+            strokeOpacity={1}
+            strokeWeight={3}
+            fillColor={'#3b82f6'}
+            fillOpacity={0.3}
+            map={map}
+        />
+   */

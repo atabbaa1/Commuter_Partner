@@ -149,10 +149,12 @@ export const Circle = forwardRef((props: CircleProps, ref: RefObject<google.maps
     // This technically covers the case if (latLngEquals(center, circle.getCenter()))
     if (!center) {
       circle.setMap(null); // Remove the circle from the map
+      circle.setCenter(null);
       console.log("Circle removed from map");
       return;
     }
     if (!latLngEquals(center, circle.getCenter())) {
+      circle.setMap(map); // Add the circle to the map
       circle.setCenter(center);
       console.log("Circle center updated:", center);
     }

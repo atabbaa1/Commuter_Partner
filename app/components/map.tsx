@@ -15,6 +15,7 @@ export function Map (props: {pois: Poi[]})  {
     const [circleCenter, setCircleCenter] = useState<google.maps.LatLngLiteral | null>(null);
     const [map, setMap] = useState<google.maps.Map | null>(null);
     const mapRef = useRef<HTMLDivElement>(null); // The <HTMLDivElement> is casting the mapRef which can be null to type HTMLDivElement
+    const activeMarker = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
 
     const loader = new Loader({
         apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
@@ -40,26 +41,17 @@ export function Map (props: {pois: Poi[]})  {
         initMap();
     }, []);
 
-    // Add a Listener to the map, but only after the map has been initialized
+    // Initialize MarkerClusterer once the markers have changed
+    // which only occurs after the map has changed
     useEffect(() => {
         if (!map) return;
-        map.addListener('click', handleClick);
-        console.log("The center of the map inside map.tsx is: ", map.getCenter().lat(), map.getCenter().lng());
-    }, [map]) // Originally no map in the dependencies array
-    
-    // Initialize MarkerClusterer, if the map has changed
-    useEffect(() => {
-        if (!map) return;
+        if (!markers) return;
         if (!clusterer.current) {
-          clusterer.current = new MarkerClusterer({map});
-          console.log('clusterer created');
+            clusterer.current = new MarkerClusterer({map});
+            console.log('clusterer created');
+            clusterer.current?.clearMarkers();
+            clusterer.current?.addMarkers(Object.values(markers));
         }
-    }, [map]);
-
-    // Update marker cluster, if the markers array has changed
-    useEffect(() => {
-        clusterer.current?.clearMarkers();
-        clusterer.current?.addMarkers(Object.values(markers));
     }, [markers]);
 
     const setMarkerRef = (marker: Marker | null, key: string) => {
@@ -97,8 +89,9 @@ export function Map (props: {pois: Poi[]})  {
      * return statement. So, we just make a listener for the map which checks if the click event is on a marker.
     */
     useEffect(() => {
+        if (!map) return;
         props.pois.map( async (poi: Poi) => {
-            const { AdvancedMarkerElement, PinElement } = await google.maps.importLibrary("marker") as google.maps.MarkerLibrary;
+            const { AdvancedMarkerElement, AdvancedMarkerClickEvent, PinElement } = await google.maps.importLibrary("marker") as google.maps.MarkerLibrary;
             const pin = new PinElement({
                 background: '#FBBC04',
                 glyphColor: '#000',
@@ -109,45 +102,34 @@ export function Map (props: {pois: Poi[]})  {
                 position: poi.location,
                 title: poi.key,
                 content: pin.element,
-                gmpClickable: false,
+                gmpClickable: true,
+            });
+            marker.addListener('click', (ev: google.maps.MapMouseEvent) => { // 'gmp-click' with AdvancedMarkerClickEvent
+                handleClick(ev, marker);
             });
             setMarkerRef(marker, poi.key);
         })
-        console.log("props.pois has changed");
+        console.log("Advanced Markers have been initialized");
     // Do NOT add map to the dependencies array, or else there will be duplicate Advanced markers.
     // The Advanced markers will be added once when props.pois is initialized, and then again when map is initialized.
     // Marker clustering will continue to work, but it will be ineffective.
-    }, [props.pois]);
+    }, [map]);
 
+    
+    
     // A click handler to pan the map to where the marker is and change the circleCenter
-    const handleClick = (ev: google.maps.MapMouseEvent) => {
-        if(!map) return;
-        if(!ev.latLng) return;
-        // Check to see if the clicked location is a marker
-        const thresh = 0.001;
-        var isMarker = false;
-        const numMarkers = Object.keys(markers).length;
-        var markerIdx = 0;
-        for (; markerIdx < numMarkers; markerIdx++) {
-            if (Math.abs(props.pois[markerIdx]["location"].lat - ev.latLng.lat()) < thresh 
-            && Math.abs(props.pois[markerIdx]["location"].lng - ev.latLng.lng()) < thresh) {
-                isMarker = true;
-                break;
-            }
-        }
-        if (isMarker) {
-            const markerCenter = props.pois[markerIdx]["location"]
-            map.panTo(markerCenter);
-            // The below code is to toggle the circleCenter when the marker is clicked again.
-            console.log("circleCenter is currently: ", circleCenter);
-            if (circleCenter && Math.abs(circleCenter.lat - markerCenter.lat) < thresh && Math.abs(circleCenter.lng - markerCenter.lng) < thresh) {
-                console.log("Making circleCenter null");
-                setCircleCenter(null);
-            } else {
-                // console.log("Setting circleCenter to the clicked location");
-                setCircleCenter(markerCenter);
-            }
-            // console.log("circleCenter is now: ", circleCenter);
+    const handleClick = (ev: google.maps.MapMouseEvent, clickedMarker: google.maps.marker.AdvancedMarkerElement) => { // ev: google.maps.marker.AdvancedMarkerClickEvent
+        if (!map) return;
+        const pos: google.maps.LatLngLiteral = {lat: ev.latLng.lat(), lng: ev.latLng.lng()};
+        map.panTo(pos);
+        if (!activeMarker.current || clickedMarker.title !== activeMarker.current.title) { // Add circle around clickedMarker.
+            activeMarker.current = clickedMarker;
+            setCircleCenter(pos);
+            return;
+        } else { // The clicked marker is now inactive. Remove the Circle
+            activeMarker.current = null;
+            setCircleCenter(null);
+            return;
         }
     };
 

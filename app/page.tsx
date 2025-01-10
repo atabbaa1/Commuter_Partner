@@ -7,7 +7,7 @@ import {Map} from './components/map';
 // Adding advanced marker locations
 type Poi ={ key: string, location: google.maps.LatLngLiteral }
 const locations: Poi[] = [
-  {key: 'NorthgateHighSchool', location: { lat: 33.46836, lng: -84.66000  }},
+  {key: 'NorthgateHighSchool', location: { lat: 33.46836, lng: -84.66599  }},
   {key: 'CanongateElementarySchool', location: { lat: 33.46517, lng: -84.64789  }},
   {key: 'SamsClub', location: { lat: 33.40024, lng: -84.62435 }},
   {key: 'NCGCinemas', location: { lat: 33.39905, lng: -84.61680 }},

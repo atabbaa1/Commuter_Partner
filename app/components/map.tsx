@@ -41,6 +41,22 @@ export function Map (props: {pois: Poi[]})  {
         initMap();
     }, []);
 
+    // Center the map on the user's location once the map is initialized
+    useEffect(() => {
+        if (!map) return; 
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position: GeolocationPosition) => {
+                    const pos = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude,
+                    };
+                    map.setCenter(pos);
+                }
+            );
+        }
+    }, [map]);
+
     // Initialize MarkerClusterer once the markers have changed
     // which only occurs after the map has changed
     useEffect(() => {

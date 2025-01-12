@@ -5,7 +5,7 @@
  * when using ref in a parent component (for example, limiting certain methods or properties).
  * A ref (short for reference) is like a state, useRef() instead of useState(). The difference is
  * states are immutable and trigger re-renders when changed while refs are mutable and don't trigger
- * re-renders when changed. One can use ref.current to access the current value of the ref.
+ * re-renders when changed (React doesn't track their change). Use ref.current to access the current ref value
  * Refs are often used to access the DOM nodes or React elements created in the render method.
  * 
  * The first argument of useImperativeHandle is the ref object, and the second argument is a function

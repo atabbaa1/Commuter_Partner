@@ -6,7 +6,6 @@ import {MarkerClusterer} from '@googlemaps/markerclusterer';
 import type {Marker} from '@googlemaps/markerclusterer';
 import {Circle} from './circle';
 import { Loader } from '@googlemaps/js-api-loader';
-import { watch } from 'fs';
 
 type Poi ={ key: string, location: google.maps.LatLngLiteral }
 
@@ -19,6 +18,7 @@ export function Map (props: {pois: Poi[]})  {
     const activeMarker = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
     const watchId = useRef<number | null>(null);
     const MAX_TIMEOUT = 10000; // Upper limit on how often position gets updated in milliseconds
+    const targetAcquired = useRef<boolean>(false); // A boolean revealing whether a marker has been designated for notification
 
     const loader = new Loader({
         apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
@@ -45,6 +45,8 @@ export function Map (props: {pois: Poi[]})  {
     }, []);
 
     // Center the map on the user's location once the map is initialized
+    // Also, add a button to designate a marker for notification
+    // Monitor the user's location in the button's event listener
     useEffect(() => {
         if (!map) return; 
         if (navigator.geolocation) {
@@ -57,42 +59,46 @@ export function Map (props: {pois: Poi[]})  {
                     map.setCenter(pos);
                 }
             );
-        }
-    }, [map]);
+            const targetAcquiredBtn = document.createElement("button");
+            targetAcquiredBtn.textContent = "Notify Me Upon Arrival";
+            targetAcquiredBtn.classList.add("custom-map-control-button");
+            map.controls[google.maps.ControlPosition.TOP_CENTER].push(targetAcquiredBtn);
 
-    // Monitor the user's location once the map has been initialized
-    useEffect(() => {
-        if (!map) return;
-        if (navigator.geolocation) {
-            watchId.current = navigator.geolocation.watchPosition(
-                (position: GeolocationPosition) => {
-                    const pos = {
-                        lat: position.coords.latitude,
-                        lng: position.coords.longitude,
-                    };
-                    console.log("User's location has been updated to: ", pos.lat, pos.lng);
+            // State variables don't update inside of event listeners, so we make targetAcquired a ref
+            // As a ref, we can't make a useEffect() dependent on targetAcquired, so we shift all logic
+            // associated with it (like monitoring the user's location) to the event listener.
+            targetAcquiredBtn.addEventListener("click", () => {
+                if (!activeMarker.current) {
+                    alert("Please click on a marker to designate it.");
+                } else if (!targetAcquired.current) {
+                    targetAcquiredBtn.textContent = "Cancel Notification/ Designate a Different Marker";
+                    targetAcquired.current = true;
+                    if (navigator.geolocation) {
+                        watchId.current = navigator.geolocation.watchPosition(
+                            (position: GeolocationPosition) => {
+                                const pos = {
+                                    lat: position.coords.latitude,
+                                    lng: position.coords.longitude,
+                                };
+                                console.log("User's location has been updated to: ", pos.lat, pos.lng);
+                            }
+                        , () => console.error("Error in watching user's location"),
+                        {timeout: MAX_TIMEOUT});
+                    }
+                    return;
+                } else if (targetAcquired.current) {
+                    targetAcquiredBtn.textContent = "Notify Me Upon Arrival";
+                    targetAcquired.current = false;
+                    if (watchId.current) {
+                        navigator.geolocation.clearWatch(watchId.current);
+                        watchId.current = null;
+                        console.log("User's location is no longer being watched");
+                    } 
+                    return;
                 }
-            , () => console.error("Error in watching user's location"),
-            {timeout: MAX_TIMEOUT});
+            });
         }
     }, [map]);
-
-    // Add a button to stop monitoring user's location once the monitoring has been setup
-    useEffect(() => {
-        if (!watchId.current) return;
-        console.log("stopMonitoringBtn useEffect is being called!");
-        const stopMonitoringBtn = document.createElement("button");
-        stopMonitoringBtn.textContent = "Stop Monitoring User Location";
-        stopMonitoringBtn.classList.add("custom-map-control-button");
-        map.controls[google.maps.ControlPosition.TOP_CENTER].push(stopMonitoringBtn);
-        stopMonitoringBtn.addEventListener("click", () => {
-            if (watchId.current) {
-                navigator.geolocation.clearWatch(watchId.current);
-                watchId.current = null;
-                alert("User location monitoring has been stopped");
-            }
-        });
-    }, [watchId.current]);
 
     // Initialize the markers once the map is initialized
     // It is possible to wait until the props.pois is initialized,
@@ -119,7 +125,7 @@ export function Map (props: {pois: Poi[]})  {
             setMarkerRef(marker, poi.key);
         })
         console.log("Advanced Markers have been initialized");
-    // Do NOT add map to the dependencies array, or else there will be duplicate Advanced markers.
+    // Do NOT add map and props.pois to the dependencies array, or else there will be duplicate Advanced markers.
     // The Advanced markers will be added once when props.pois is initialized, and then again when map is initialized.
     // Marker clustering will continue to work, but it will be ineffective.
     }, [map]);
@@ -127,6 +133,7 @@ export function Map (props: {pois: Poi[]})  {
     // A click handler to pan the map to where the marker is and change the circleCenter
     const handleClick = (ev: google.maps.MapMouseEvent, clickedMarker: google.maps.marker.AdvancedMarkerElement) => { // ev: google.maps.marker.AdvancedMarkerClickEvent
         if (!map) return;
+        if (targetAcquired.current) return;
         const pos: google.maps.LatLngLiteral = {lat: ev.latLng.lat(), lng: ev.latLng.lng()};
         map.panTo(pos);
         if (!activeMarker.current || clickedMarker.title !== activeMarker.current.title) { // Add circle around clickedMarker.

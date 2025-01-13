@@ -19,6 +19,8 @@ export function Map (props: {pois: Poi[]})  {
     const watchId = useRef<number | null>(null);
     const MAX_TIMEOUT = 10000; // Upper limit on how often position gets updated in milliseconds
     const targetAcquired = useRef<boolean>(false); // A boolean revealing whether a marker has been designated for notification
+    const DEFAULT_RADIUS = 800; // The radius of the circle around the designated marker
+    const circleRef = useRef<google.maps.Circle | null>(null); // The circle around the designated marker
 
     const loader = new Loader({
         apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
@@ -67,38 +69,53 @@ export function Map (props: {pois: Poi[]})  {
             // State variables don't update inside of event listeners, so we make targetAcquired a ref
             // As a ref, we can't make a useEffect() dependent on targetAcquired, so we shift all logic
             // associated with it (like monitoring the user's location) to the event listener.
-            targetAcquiredBtn.addEventListener("click", () => {
-                if (!activeMarker.current) {
-                    alert("Please click on a marker to designate it.");
-                } else if (!targetAcquired.current) {
-                    targetAcquiredBtn.textContent = "Cancel Notification/ Designate a Different Marker";
-                    targetAcquired.current = true;
-                    if (navigator.geolocation) {
-                        watchId.current = navigator.geolocation.watchPosition(
-                            (position: GeolocationPosition) => {
-                                const pos = {
-                                    lat: position.coords.latitude,
-                                    lng: position.coords.longitude,
-                                };
-                                console.log("User's location has been updated to: ", pos.lat, pos.lng);
-                            }
-                        , () => console.error("Error in watching user's location"),
-                        {timeout: MAX_TIMEOUT});
-                    }
-                    return;
-                } else if (targetAcquired.current) {
-                    targetAcquiredBtn.textContent = "Notify Me Upon Arrival";
-                    targetAcquired.current = false;
-                    if (watchId.current) {
-                        navigator.geolocation.clearWatch(watchId.current);
-                        watchId.current = null;
-                        console.log("User's location is no longer being watched");
-                    } 
-                    return;
-                }
-            });
+            targetAcquiredBtn.addEventListener("click", () => handleTargetAcquired(targetAcquiredBtn));
         }
     }, [map]);
+
+    // Event handler for the targetAcquiredBtn
+    const handleTargetAcquired = (targetAcquiredBtn: HTMLButtonElement) => {
+        if (!activeMarker.current) {
+            alert("Please click on a marker to designate it.");
+        } else if (!targetAcquired.current) {
+            targetAcquiredBtn.textContent = "Cancel Notification/ Designate a Different Marker";
+            targetAcquired.current = true;
+            if (navigator.geolocation) {
+                watchId.current = navigator.geolocation.watchPosition(
+                    (position: GeolocationPosition) => {
+                        const pos = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude,
+                        };
+                        console.log("User's location has been updated to: ", pos.lat, pos.lng);
+                        // If the user has entered the circle, alert the user and reset the button
+                        if (google.maps.geometry.spherical.computeDistanceBetween(activeMarker.current?.position, pos) < circleRef.current?.getRadius()) {
+                            alert("You have arrived at your destination!");
+                            targetAcquiredBtn.textContent = "Notify Me Upon Arrival";
+                            targetAcquired.current = false;
+                            if (watchId.current) {
+                                navigator.geolocation.clearWatch(watchId.current);
+                                watchId.current = null;
+                                console.log("User's location is no longer being watched");
+                            }
+                            return;
+                        }
+                    }
+                , () => console.error("Error in watching user's location"),
+                {timeout: MAX_TIMEOUT});
+            }
+            return;
+        } else if (targetAcquired.current) {
+            targetAcquiredBtn.textContent = "Notify Me Upon Arrival";
+            targetAcquired.current = false;
+            if (watchId.current) {
+                navigator.geolocation.clearWatch(watchId.current);
+                watchId.current = null;
+                console.log("User's location is no longer being watched");
+            } 
+            return;
+        }
+    }
 
     // Initialize the markers once the map is initialized
     // It is possible to wait until the props.pois is initialized,
@@ -178,6 +195,7 @@ export function Map (props: {pois: Poi[]})  {
         });
     };
 
+
     /**
      * Since the Map object is modified in this component with a lot of properties, we want to
      * make sure to pass on the mapRef we have created.
@@ -187,7 +205,7 @@ export function Map (props: {pois: Poi[]})  {
     return (
       <>
         <Circle
-            radius={800}
+            radius={DEFAULT_RADIUS}
             center={circleCenter}
             strokeColor={'#0c4cb3'}
             strokeOpacity={1}
@@ -195,6 +213,9 @@ export function Map (props: {pois: Poi[]})  {
             fillColor={'#3b82f6'}
             fillOpacity={0.3}
             map={map}
+            editable={true}
+            draggable={false}
+            ref={circleRef}
         />
         <div ref={mapRef} style={{ height: "100vh", width: "100%" }}>
         </div>

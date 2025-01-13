@@ -132,6 +132,10 @@ export const Circle = forwardRef((props: CircleProps, ref: RefObject<google.maps
       });
       circleRef.current.setOptions(circleOptions);
       circleRef.current.setMap(map);
+      // An event handler to modify the radius of the Circle when the user edits its boundaries on the map
+      google.maps.event.addListener(circleRef.current, 'radius_changed', () => {
+        console.log("Inside circle.tsx, the new radius is: ", circleRef.current?.getRadius());
+      });
       console.log("Circle initialized and added to map. The Circle is: ", circleRef.current);
     };
     if (!map) return;
@@ -150,7 +154,6 @@ export const Circle = forwardRef((props: CircleProps, ref: RefObject<google.maps
     if (!center) {
       circle.setMap(null); // Remove the circle from the map
       circle.setCenter(null);
-      console.log("Circle removed from map");
       return;
     }
     if (!latLngEquals(center, circle.getCenter())) {
@@ -164,6 +167,8 @@ export const Circle = forwardRef((props: CircleProps, ref: RefObject<google.maps
     // and any useEffect with circleOptions as a dependency will be triggered.
   }, [center]);
 
+  // This useEffect isn't triggered when the user modifies the radius
+  // by way of editing the boundaries of the Circle on the Map
   useEffect(() => {
     if (radius === undefined || radius === null || !circle) return;
     if (radius !== circle.getRadius()) {
@@ -175,6 +180,7 @@ export const Circle = forwardRef((props: CircleProps, ref: RefObject<google.maps
   // attach and re-attach event-handlers when any of the properties change
   useEffect(() => {
     if (!circle) return;
+    console.log("Adding event listeners to the circle");
 
     // Add event listeners
     const gme = google.maps.event;
@@ -199,13 +205,12 @@ export const Circle = forwardRef((props: CircleProps, ref: RefObject<google.maps
       const newCenter = circle.getCenter();
       callbacks.current.onCenterChanged?.(newCenter);
     });
-    // console.log("Event listeners added to the circle");
 
     return () => {
       gme.clearInstanceListeners(circle);
     };
   }, [circle]);
 
-  // useImperativeHandle(ref, () => circle);
+  useImperativeHandle(ref, () => circle); // Added this back so that the parent Map can access the Circle's radius
   return null; // No need for this component to render a DOM if there is a useImperativeHandle() or a forwardRef()
 });

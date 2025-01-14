@@ -21,6 +21,7 @@ export function Map (props: {pois: Poi[]})  {
     const targetAcquired = useRef<boolean>(false); // A boolean revealing whether a marker has been designated for notification
     const DEFAULT_RADIUS = 800; // The radius of the circle around the designated marker
     const circleRef = useRef<google.maps.Circle | null>(null); // The circle around the designated marker
+    const RIGHT_CLICK = 2; // The right click button on the mouse
 
     const loader = new Loader({
         apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
@@ -139,6 +140,12 @@ export function Map (props: {pois: Poi[]})  {
             marker.addListener('click', (ev: google.maps.MapMouseEvent) => { // 'gmp-click' with AdvancedMarkerClickEvent
                 handleClick(ev, marker);
             });
+            marker.addListener('auxclick', (e: google.maps.MapMouseEvent) => { // Not Working
+                handleAuxClick(e, marker);
+            });
+            // marker.addListener("mouseup", (e: MouseEvent) => {
+            //     console.log("The mouseup event has occurred");
+            // });
             setMarkerRef(marker, poi.key);
         })
         console.log("Advanced Markers have been initialized");
@@ -164,17 +171,53 @@ export function Map (props: {pois: Poi[]})  {
         }
     };
 
+    // An auxclick handler to remove a marker from the map
+    const handleAuxClick = (ev: google.maps.MapMouseEvent, clickedMarker: google.maps.marker.AdvancedMarkerElement) => { // ev: google.maps.marker.AdvancedMarkerClickEvent
+        console.log("Inside handleAuxClick, the click number is ", (ev.domEvent as MouseEvent).button);
+        if (!map) return;
+        if (targetAcquired.current) return;
+        if ((ev.domEvent as MouseEvent).button !== RIGHT_CLICK) {
+            setMarkerRef(null, clickedMarker.title);
+        }
+    };
+
+    // Add a right click handler to the map once it is initialized.
+    // This allows the user to add a marker to the map
+    useEffect(() => {
+        if (!map) return;
+        map.addListener("rightclick", async (ev: google.maps.MapMouseEvent) => {
+            const { AdvancedMarkerElement, AdvancedMarkerClickEvent, PinElement } = await google.maps.importLibrary("marker") as google.maps.MarkerLibrary;
+            const pin = new PinElement({
+                background: '#FBBC04',
+                glyphColor: '#000',
+                borderColor: '#000',
+            });
+            const marker = new AdvancedMarkerElement({
+                map: map,
+                position: ev.latLng.toJSON(),
+                title: `{${ev.latLng.lat()}, ${ev.latLng.lng()}}`,
+                content: pin.element,
+                gmpClickable: true,
+            });
+            marker.addListener('click', (e: google.maps.MapMouseEvent) => { // 'gmp-click' with AdvancedMarkerClickEvent
+                handleClick(e, marker);
+            });
+            marker.addListener('auxclick', (rc: google.maps.MapMouseEvent) => { // Not Working
+                handleAuxClick(rc, marker);
+            });
+            setMarkerRef(marker, marker.title);
+        });
+    }, [map]);
+
     // Initialize MarkerClusterer once the markers have changed
     // which only occurs after the map has changed
     useEffect(() => {
         if (!map) return;
         if (!markers) return;
-        if (!clusterer.current) {
-            clusterer.current = new MarkerClusterer({map});
-            console.log('clusterer created');
-            clusterer.current?.clearMarkers();
-            clusterer.current?.addMarkers(Object.values(markers));
-        }
+        clusterer.current = new MarkerClusterer({map});
+        console.log('clusterer created');
+        clusterer.current?.clearMarkers();
+        clusterer.current?.addMarkers(Object.values(markers));
     }, [markers]);
 
     const setMarkerRef = (marker: Marker | null, key: string) => {

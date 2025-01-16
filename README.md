@@ -4,7 +4,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 This Typescript application is meant to alert the users when he/she arrives close to a marked destination.  
 This web application requires location permission.  
-You can access the web application at the following [`URL`](https://commuter-partner-nifopgm3x-abdulrahman-tabbaas-projects.vercel.app)    
+You can access the web application at the following [`URL`](https://commuter-partner.vercel.app/)    
 
 There are a few pre-defined markers in Newnan, GA. You can add any markers with a right-click.  
 You may also modify the range of error by modifying the radius of the error circle.    

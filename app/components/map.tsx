@@ -1,10 +1,9 @@
 "use client"
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import {APIProvider, Pin, AdvancedMarker} from '@vis.gl/react-google-maps'; // later add Map if necessary
+import React, { useState, useRef, useEffect } from 'react';
 import {MarkerClusterer} from '@googlemaps/markerclusterer';
 import type {Marker} from '@googlemaps/markerclusterer';
-import {Circle} from './circle';
+import Circle from './circle';
 import { Loader } from '@googlemaps/js-api-loader';
 
 type Poi ={ key: string, location: google.maps.LatLngLiteral }
@@ -45,7 +44,7 @@ export function Map (props: {pois: Poi[]})  {
             console.log("Map initialized");
         }
         initMap();
-    }, []);
+    }, [loader]);
 
     // Center the map on the user's location once the map is initialized
     // Also, add a button to designate a marker for notification
@@ -124,7 +123,7 @@ export function Map (props: {pois: Poi[]})  {
     useEffect(() => {
         if (!map) return;
         props.pois.map( async (poi: Poi) => {
-            const { AdvancedMarkerElement, AdvancedMarkerClickEvent, PinElement } = await google.maps.importLibrary("marker") as google.maps.MarkerLibrary;
+            const { AdvancedMarkerElement, PinElement } = await google.maps.importLibrary("marker") as google.maps.MarkerLibrary; // AdvancedMarkerClickEvent
             const pin = new PinElement({
                 background: '#FBBC04',
                 glyphColor: '#000',
@@ -186,7 +185,7 @@ export function Map (props: {pois: Poi[]})  {
     useEffect(() => {
         if (!map) return;
         map.addListener("rightclick", async (ev: google.maps.MapMouseEvent) => {
-            const { AdvancedMarkerElement, AdvancedMarkerClickEvent, PinElement } = await google.maps.importLibrary("marker") as google.maps.MarkerLibrary;
+            const { AdvancedMarkerElement, PinElement } = await google.maps.importLibrary("marker") as google.maps.MarkerLibrary; // AdvancedMarkerClickEvent
             const pin = new PinElement({
                 background: '#FBBC04',
                 glyphColor: '#000',

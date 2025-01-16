@@ -1,7 +1,6 @@
 "use client"
 
 import React from 'react';
-import {APIProvider} from '@vis.gl/react-google-maps'; // later add Map if necessary
 import {Map} from './components/map';
 
 // Adding advanced marker locations
@@ -16,7 +15,6 @@ const locations: Poi[] = [
 ];
 
 const MapPage = () => {
-  const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   // In the return statement, there used to be <APIProvider> and <div id="map"> components.
   // However, I'm using a custom Map component, and I already use Loaders in the custom Map component.
   return (

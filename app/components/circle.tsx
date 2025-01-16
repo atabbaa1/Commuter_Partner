@@ -87,7 +87,7 @@ export type CircleRef = Ref<google.maps.Circle | null>;
 // CircleProps will include all properties existing in BOTH google.maps.CircleOptions and CircleEventProps
 // CircleRef is a union of google.maps.Circle and null
 
-export const Circle = forwardRef((props: CircleProps, ref: RefObject<google.maps.Circle>) => {
+const Circle = forwardRef((props: CircleProps, ref: RefObject<google.maps.Circle>) => {
   const {
     onClick,
     onDrag,
@@ -214,3 +214,6 @@ export const Circle = forwardRef((props: CircleProps, ref: RefObject<google.maps
   useImperativeHandle(ref, () => circle); // Added this back so that the parent Map can access the Circle's radius
   return null; // No need for this component to render a DOM if there is a useImperativeHandle() or a forwardRef()
 });
+
+Circle.displayName = 'Circle'; // Implemented this way for eslint.
+export default Circle;
